@@ -21,7 +21,6 @@ import {
   Moon,
   Plus,
   RefreshCw,
-  Search,
   Settings2,
   ShieldCheck,
   Sun,
@@ -33,11 +32,11 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { api, clearToken, getToken, saveToken } from "../lib/api";
-import { HistoryDetailsView } from "../components/HistoryDetailsView";
+import { ActivitiesView } from "../components/ActivitiesView";
 import type {
+  ActivitySummary,
   CalendarWorkout,
   GarminStatus,
-  HistoryItem,
   Toast,
   WorkoutDuration,
   WorkoutPayload,
@@ -46,7 +45,7 @@ import type {
   WorkoutTarget,
 } from "../lib/types";
 
-type Tab = "home" | "workout" | "calendar" | "history" | "garmin";
+type Tab = "home" | "workout" | "calendar" | "activities" | "garmin";
 type EditorMode = "visual" | "json";
 type ConnectionState = "loading" | "connected" | "disconnected" | "error";
 
@@ -147,7 +146,7 @@ function formatTarget(target?: WorkoutTarget) {
 }
 function stepSummary(step: WorkoutStep) {
   return step.type === "repeat"
-    ? `${step.iterations || 2}x · ${step.steps?.length || 0} etapas`
+    ? `${step.repeat || 2}x · ${step.steps?.length || 0} etapas`
     : `${formatDuration(step.duration)}${step.target ? ` · ${formatTarget(step.target)}` : ""}`;
 }
 function visualToPayload(
@@ -161,7 +160,7 @@ function visualToPayload(
       ...step,
       ...(step.type === "repeat"
         ? {
-            iterations: Math.max(2, Number(step.iterations) || 2),
+            repeat: Math.max(2, Number(step.repeat) || 2),
             steps: clean(step.steps || []),
           }
         : {}),
@@ -269,7 +268,7 @@ function AppNav({
     { id: "home", label: "Visão geral", icon: HomeIcon },
     { id: "workout", label: "Novo treino", icon: Plus },
     { id: "calendar", label: "Calendário", icon: CalendarDays },
-    { id: "history", label: "Histórico", icon: ListChecks },
+    { id: "activities", label: "Atividades", icon: Activity },
     { id: "garmin", label: "Conexão Garmin", icon: Watch },
   ];
   return (
@@ -361,9 +360,9 @@ function StepEditor({
               type="number"
               min={2}
               max={99}
-              value={step.iterations || 2}
+              value={step.repeat || 2}
               onChange={(e) =>
-                onChange({ ...step, iterations: Number(e.target.value) })
+                onChange({ ...step, repeat: Number(e.target.value) })
               }
             />
             <span>vezes</span>
@@ -844,7 +843,7 @@ function WorkoutComposer({
                     type === "repeat"
                       ? {
                           type,
-                          iterations: 6,
+                          repeat: 6,
                           steps: [
                             defaultStep("interval"),
                             defaultStep("recovery"),
@@ -982,12 +981,12 @@ function SparklesIcon() {
 function HomeDashboard({
   garmin,
   calendar,
-  history,
+  activities,
   setTab,
 }: {
   garmin: GarminStatus;
   calendar: CalendarWorkout[];
-  history: HistoryItem[];
+  activities: ActivitySummary[];
   setTab: (tab: Tab) => void;
 }) {
   const upcoming = calendar
@@ -1030,16 +1029,16 @@ function HomeDashboard({
             {garmin.connected ? "Online" : "Ação necessária"}
           </span>
         </button>
-        <button className="stat-card" onClick={() => setTab("history")}>
+        <button className="stat-card" onClick={() => setTab("activities")}>
           <div className="stat-icon purple">
-            <CloudUpload size={19} />
+            <Activity size={19} />
           </div>
           <div>
-            <span>Treinos enviados</span>
-            <strong>{history.length}</strong>
+            <span>Última corrida</span>
+            <strong>{activities[0]?.name || "Nenhuma ainda"}</strong>
           </div>
           <span className="stat-link">
-            Ver histórico <ChevronRight size={14} />
+            Ver atividades <ChevronRight size={14} />
           </span>
         </button>
         <button className="stat-card" onClick={() => setTab("calendar")}>
@@ -1119,24 +1118,21 @@ function HomeDashboard({
               <span className="eyebrow">Sincronizações</span>
               <h2>Atividade recente</h2>
             </div>
-            <button className="text-button" onClick={() => setTab("history")}>
+            <button className="text-button" onClick={() => setTab("activities")}>
               Ver tudo <ChevronRight size={15} />
             </button>
           </div>
-          {history.length ? (
+          {activities.length ? (
             <div className="list-stack">
-              {history.slice(0, 4).map((item) => (
-                <div className="activity-item" key={item.id}>
+              {activities.slice(0, 4).map((item) => (
+                <div className="activity-item" key={String(item.activityId)}>
                   <div className="activity-icon">
-                    <Check size={15} />
+                    <Activity size={15} />
                   </div>
                   <div>
-                    <strong>{item.name}</strong>
+                    <strong>{item.name || "Corrida sem nome"}</strong>
                     <p>
-                      {item.status === "scheduled_verified"
-                        ? "Agendado e verificado"
-                        : "Criado na Garmin"}{" "}
-                      · {formatDate(item.created_at, true)}
+                      {formatDate(item.startTime, true)}
                     </p>
                   </div>
                 </div>
@@ -1144,11 +1140,11 @@ function HomeDashboard({
             </div>
           ) : (
             <EmptyState
-              icon={CloudUpload}
-              title="Nenhum envio ainda"
-              description="Seu histórico aparecerá aqui depois do primeiro treino."
-              action={() => setTab("workout")}
-              actionLabel="Enviar primeiro treino"
+              icon={Activity}
+              title="Nenhuma corrida ainda"
+              description="As atividades disponíveis na Garmin aparecerão aqui."
+              action={() => setTab("activities")}
+              actionLabel="Ver atividades"
             />
           )}
         </section>
@@ -1387,94 +1383,6 @@ function CalendarView({
   );
 }
 
-function HistoryView({
-  items,
-  loading,
-}: {
-  items: HistoryItem[];
-  loading: boolean;
-}) {
-  const [query, setQuery] = useState("");
-  const filtered = items.filter((item) =>
-    item.name.toLowerCase().includes(query.toLowerCase()),
-  );
-  return (
-    <div className="page-stack">
-      <div className="page-heading">
-        <div>
-          <span className="eyebrow">Seu progresso</span>
-          <h1>Histórico</h1>
-          <p>Todos os treinos que você enviou para a Garmin.</p>
-        </div>
-        <div className="search-field">
-          <Search size={16} />
-          <input
-            placeholder="Buscar treino..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </div>
-      </div>
-      <section className="panel history-panel">
-        {loading ? (
-          <div className="loading-state">
-            <Loader2 className="spin" size={22} /> Carregando histórico...
-          </div>
-        ) : filtered.length ? (
-          <>
-            <div className="history-table-head">
-              <span>Treino</span>
-              <span>Data agendada</span>
-              <span>Status</span>
-              <span>Workout ID</span>
-            </div>
-            <div className="history-list">
-              {filtered.map((item) => (
-                <div className="history-row" key={item.id}>
-                  <div className="history-name">
-                    <div className="activity-icon">
-                      <Check size={14} />
-                    </div>
-                    <div>
-                      <strong>{item.name}</strong>
-                      <p>Enviado em {formatDate(item.created_at)}</p>
-                    </div>
-                  </div>
-                  <span>
-                    {item.date ? formatDate(item.date) : "Sem agendamento"}
-                  </span>
-                  <span className="status-pill success">
-                    {item.status === "scheduled_verified"
-                      ? "Verificado"
-                      : item.status === "scheduled_unverified"
-                        ? "Agendado"
-                        : "Criado"}
-                  </span>
-                  <code>#{item.workout_id}</code>
-                </div>
-              ))}
-            </div>
-          </>
-        ) : (
-          <EmptyState
-            icon={ListChecks}
-            title={
-              query
-                ? "Nenhum treino encontrado"
-                : "Você ainda não enviou nenhum treino"
-            }
-            description={
-              query
-                ? "Tente buscar por outro nome."
-                : "Seu histórico aparecerá aqui após o primeiro envio."
-            }
-          />
-        )}
-      </section>
-    </div>
-  );
-}
-
 function GarminView({
   status,
   state,
@@ -1496,6 +1404,7 @@ function GarminView({
   const [password, setPassword] = useState("");
   const [mfa, setMfa] = useState("");
   const [needsMfa, setNeedsMfa] = useState(false);
+  const [showForm, setShowForm] = useState(!status.connected);
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     try {
@@ -1503,6 +1412,7 @@ function GarminView({
       if (result === "mfa") setNeedsMfa(true);
       else {
         setNeedsMfa(false);
+        setShowForm(false);
         setPassword("");
         setMfa("");
         addToast(
@@ -1555,7 +1465,7 @@ function GarminView({
               ? `Conta conectada${status.email ? ` como ${status.email}` : ""}. Seus próximos treinos serão enviados com segurança.`
               : "Conecte uma vez para começar a enviar treinos estruturados sem cadastro manual."}
           </p>
-          {!status.connected && (
+          {(!status.connected || showForm) && (
             <form className="garmin-form" onSubmit={submit}>
               <label>
                 E-mail Garmin
@@ -1602,8 +1512,8 @@ function GarminView({
               </button>
             </form>
           )}
-          {status.connected && (
-            <button className="secondary-button">
+          {status.connected && !showForm && (
+            <button className="secondary-button" onClick={() => setShowForm(true)}>
               <RefreshCw size={15} /> Reconectar
             </button>
           )}
@@ -1612,7 +1522,8 @@ function GarminView({
             <span>
               <strong>Seus dados estão protegidos.</strong> A senha Garmin é
               usada somente durante a autenticação e nunca é armazenada. O
-              backend persiste apenas tokens criptografados.
+              backend guarda apenas os tokens temporários da sessão; eles podem
+              desaparecer quando o Render reiniciar.
             </span>
           </div>
         </div>
@@ -1631,7 +1542,8 @@ export default function Home() {
   const [garminState, setGarminState] = useState<ConnectionState>("loading");
   const [garminBusy, setGarminBusy] = useState(false);
   const [calendar, setCalendar] = useState<CalendarWorkout[]>([]);
-  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [activities, setActivities] = useState<ActivitySummary[]>([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
   const [month, setMonth] = useState(new Date());
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -1678,37 +1590,12 @@ export default function Home() {
   async function loadData(targetMonth = month) {
     setLoadingData(true);
     try {
-      const [calendarResult, historyResult] = await Promise.all([
-        api(
-          `/api/calendar?year=${targetMonth.getFullYear()}&month=${targetMonth.getMonth() + 1}`,
-        ),
-        api("/api/history"),
-      ]);
+      const calendarResult = await api(
+        `/api/calendar?year=${targetMonth.getFullYear()}&month=${targetMonth.getMonth() + 1}`,
+      );
       const garminItems =
         (calendarResult as { items?: CalendarWorkout[] }).items || [];
-      const historyItems = historyResult as HistoryItem[];
-      const monthPrefix = `${targetMonth.getFullYear()}-${String(targetMonth.getMonth() + 1).padStart(2, "0")}`;
-      const garminIds = new Set(
-        garminItems.map((item) => item.workout_id).filter(Boolean),
-      );
-      const historyFallback = historyItems
-        .filter(
-          (item) =>
-            (!dateKey(item.date) ||
-              dateKey(item.date).startsWith(monthPrefix)) &&
-            !garminIds.has(item.workout_id),
-        )
-        .map(
-          (item) =>
-            ({
-              workout_id: item.workout_id,
-              scheduled_id: item.scheduled_id,
-              name: item.name,
-              date: dateKey(item.date),
-            }) satisfies CalendarWorkout,
-        );
-      setCalendar([...garminItems, ...historyFallback]);
-      setHistory(historyItems);
+      setCalendar(garminItems);
     } catch (error) {
       addToast(
         "error",
@@ -1719,22 +1606,32 @@ export default function Home() {
       setLoadingData(false);
     }
   }
+  async function loadActivities() {
+    setActivitiesLoading(true);
+    try {
+      const result = await api("/api/activities?limit=20&type=running");
+      setActivities(Array.isArray(result) ? (result as ActivitySummary[]) : []);
+    } catch (error) {
+      if (tab === "activities") {
+        addToast("error", "Não foi possível carregar as atividades", friendlyError(error));
+      }
+    } finally {
+      setActivitiesLoading(false);
+    }
+  }
   useEffect(() => {
     if (authenticated) {
       void refreshGarmin();
       void loadData();
-    }
-  }, [authenticated]);
-  useEffect(() => {
-    if (authenticated) {
-      void api("/api/history")
-        .then((result) => setHistory(result as HistoryItem[]))
-        .catch(() => undefined);
+      void loadActivities();
     }
   }, [authenticated]);
   useEffect(() => {
     if (authenticated && tab === "calendar") void loadData(month);
   }, [month]);
+  useEffect(() => {
+    if (authenticated && tab === "activities") void loadActivities();
+  }, [tab]);
   function navigate(next: Tab) {
     setTab(next);
     setMobileOpen(false);
@@ -1892,7 +1789,7 @@ export default function Home() {
           <HomeDashboard
             garmin={garmin}
             calendar={calendar}
-            history={history}
+            activities={activities}
             setTab={navigate}
           />
         )}
@@ -1913,8 +1810,13 @@ export default function Home() {
             onRefresh={() => void loadData(month)}
           />
         )}
-        {tab === "history" && (
-          <HistoryDetailsView items={history} loading={loadingData} />
+        {tab === "activities" && (
+          <ActivitiesView
+            items={activities}
+            loading={activitiesLoading}
+            onRefresh={() => void loadActivities()}
+            addToast={addToast}
+          />
         )}
         {tab === "garmin" && (
           <GarminView
