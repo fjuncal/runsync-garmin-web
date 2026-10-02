@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clipboard,
+  ClipboardList,
   CloudUpload,
   Copy,
   FileJson,
@@ -33,10 +34,13 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, clearToken, getToken, saveToken } from "../lib/api";
 import { ActivitiesView } from "../components/ActivitiesView";
+import { WorkoutsView } from "../components/WorkoutsView";
 import { parseWorkoutJson, validateWorkoutPayload } from "../lib/workout-json";
+import { removeWorkoutById, workoutDeletePath } from "../lib/workouts";
 import type {
   ActivitySummary,
   CalendarWorkout,
+  GarminWorkout,
   GarminStatus,
   Toast,
   WorkoutDuration,
@@ -46,7 +50,7 @@ import type {
   WorkoutTarget,
 } from "../lib/types";
 
-type Tab = "home" | "workout" | "calendar" | "activities" | "garmin";
+type Tab = "home" | "workout" | "calendar" | "workouts" | "activities" | "garmin";
 type EditorMode = "visual" | "json";
 type ConnectionState = "loading" | "connected" | "disconnected" | "error";
 
@@ -269,6 +273,7 @@ function AppNav({
     { id: "home", label: "Visão geral", icon: HomeIcon },
     { id: "workout", label: "Novo treino", icon: Plus },
     { id: "calendar", label: "Calendário", icon: CalendarDays },
+    { id: "workouts", label: "Meus treinos", icon: ClipboardList },
     { id: "activities", label: "Atividades", icon: Activity },
     { id: "garmin", label: "Conexão Garmin", icon: Watch },
   ];
@@ -1576,6 +1581,8 @@ export default function Home() {
   const [garminState, setGarminState] = useState<ConnectionState>("loading");
   const [garminBusy, setGarminBusy] = useState(false);
   const [calendar, setCalendar] = useState<CalendarWorkout[]>([]);
+  const [workouts, setWorkouts] = useState<GarminWorkout[]>([]);
+  const [workoutsLoading, setWorkoutsLoading] = useState(false);
   const [activities, setActivities] = useState<ActivitySummary[]>([]);
   const [activitiesLoading, setActivitiesLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
@@ -1653,11 +1660,29 @@ export default function Home() {
       setActivitiesLoading(false);
     }
   }
+  async function loadWorkouts() {
+    setWorkoutsLoading(true);
+    try {
+      const result = await api("/api/workouts?limit=100&start=0");
+      setWorkouts(Array.isArray(result) ? (result as GarminWorkout[]) : []);
+    } catch (error) {
+      if (tab === "workouts") {
+        addToast("error", "NÃ£o foi possÃ­vel carregar os treinos", friendlyError(error));
+      }
+    } finally {
+      setWorkoutsLoading(false);
+    }
+  }
+  async function deleteWorkout(workoutId: number) {
+    await api(workoutDeletePath(workoutId), { method: "DELETE" });
+    setWorkouts((current) => removeWorkoutById(current, workoutId));
+  }
   useEffect(() => {
     if (authenticated) {
       void refreshGarmin();
       void loadData();
       void loadActivities();
+      void loadWorkouts();
     }
   }, [authenticated]);
   useEffect(() => {
@@ -1665,6 +1690,9 @@ export default function Home() {
   }, [month]);
   useEffect(() => {
     if (authenticated && tab === "activities") void loadActivities();
+  }, [tab]);
+  useEffect(() => {
+    if (authenticated && tab === "workouts") void loadWorkouts();
   }, [tab]);
   function navigate(next: Tab) {
     setTab(next);
@@ -1842,6 +1870,15 @@ export default function Home() {
             month={month}
             setMonth={setMonth}
             onRefresh={() => void loadData(month)}
+          />
+        )}
+        {tab === "workouts" && (
+          <WorkoutsView
+            items={workouts}
+            loading={workoutsLoading}
+            onRefresh={() => void loadWorkouts()}
+            onDelete={deleteWorkout}
+            addToast={addToast}
           />
         )}
         {tab === "activities" && (

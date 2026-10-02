@@ -436,6 +436,165 @@ body {
   }
 }
 
+/* Saved Garmin workouts: compact rows on desktop, comfortable cards on mobile. */
+.workouts-panel {
+  overflow: hidden;
+  padding: 0;
+}
+.workout-list-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-bottom: 1px solid var(--line);
+  padding: 24px 25px 20px;
+  color: var(--accent-dark);
+}
+.workout-list-heading h2 {
+  margin-top: 5px;
+  color: var(--ink);
+  font-size: 22px;
+  letter-spacing: -0.04em;
+}
+.workout-list {
+  display: grid;
+}
+.workout-card {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+  border-bottom: 1px solid var(--line);
+  padding: 16px 25px;
+}
+.workout-card:last-child {
+  border-bottom: 0;
+}
+.workout-card-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+.workout-card-main {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+.workout-card-main > strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workout-card-main > span {
+  color: var(--muted);
+  font-size: 10px;
+}
+.workout-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.workout-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.workout-delete {
+  color: #b7665d;
+}
+.workout-delete:hover {
+  border-color: #d99b93;
+  background: #fff4f2;
+  color: #a44439;
+}
+.workout-empty {
+  min-height: 280px;
+}
+.workout-empty > span {
+  max-width: 360px;
+  text-align: center;
+}
+.workout-confirm-name {
+  overflow: hidden;
+  margin: 20px 0 8px;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workout-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 25px;
+}
+.danger-button {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid #b7665d;
+  border-radius: 10px;
+  background: #b7665d;
+  color: #fff;
+  padding: 0 14px;
+  font-size: 11px;
+  font-weight: 800;
+}
+.danger-button:hover {
+  background: #9f493f;
+}
+.danger-button:disabled,
+.secondary-button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+.dark .workout-card {
+  border-color: var(--line);
+}
+.dark .workout-delete:hover {
+  border-color: #875049;
+  background: #302020;
+  color: #ffb0a7;
+}
+@media (max-width: 560px) {
+  .workout-list-heading {
+    align-items: flex-start;
+    padding: 20px 16px 16px;
+  }
+  .workout-card {
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    gap: 9px;
+    padding: 14px 16px;
+  }
+  .workout-card-icon {
+    width: 29px;
+    height: 29px;
+  }
+  .workout-meta {
+    display: grid;
+    gap: 4px;
+  }
+  .workout-confirm-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .workout-confirm-actions button {
+    width: 100%;
+  }
+}
+
 /* Activities: a quiet live-data surface with the visual language of a race
    split board — navy for the Garmin feed, orange for effort, blue for live. */
 .activities-page {

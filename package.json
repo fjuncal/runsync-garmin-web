@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test:workout-json": "node --experimental-strip-types --test lib/workout-json.test.ts"
+    "test:workout-json": "node --experimental-strip-types --test lib/workout-json.test.ts lib/workouts.test.ts",
+    "test:workouts-ui": "tsx --test components/WorkoutsView.test.tsx"
   },
   "dependencies": {
     "lucide-react": "0.542.0",
@@ -18,6 +19,8 @@
     "@types/node": "22.10.2",
     "@types/react": "19.0.12",
     "@types/react-dom": "19.0.4",
+    "react-test-renderer": "19.1.1",
+    "tsx": "4.19.2",
     "typescript": "5.7.2"
   }
 }

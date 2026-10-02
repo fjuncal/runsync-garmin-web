@@ -41,6 +41,16 @@ export type CalendarWorkout = {
   raw?: unknown;
 };
 
+export type GarminWorkout = {
+  workoutId: number;
+  name: string;
+  sportType?: string | null;
+  createdAt?: string | number | null;
+  updatedAt?: string | number | null;
+  estimatedDuration?: string | number | null;
+  estimatedDistance?: string | number | null;
+};
+
 export type ActivitySummary = {
   activityId?: number | string;
   name?: string;
