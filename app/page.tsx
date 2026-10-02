@@ -30,9 +30,10 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, clearToken, getToken, saveToken } from "../lib/api";
 import { ActivitiesView } from "../components/ActivitiesView";
+import { parseWorkoutJson, validateWorkoutPayload } from "../lib/workout-json";
 import type {
   ActivitySummary,
   CalendarWorkout,
@@ -632,19 +633,14 @@ function WorkoutComposer({
   const [date, setDate] = useState(defaultPayload.date || "");
   const [steps, setSteps] = useState<WorkoutStep[]>(defaultPayload.steps);
   const [text, setText] = useState(payloadToText(defaultPayload));
+  const editorRef = useRef<HTMLTextAreaElement>(null);
   const [busy, setBusy] = useState(false);
   const [jsonError, setJsonError] = useState("");
   const payload = useMemo(
     () =>
       mode === "visual"
         ? visualToPayload(name, description, date, steps)
-        : (() => {
-            try {
-              return JSON.parse(text) as WorkoutPayload;
-            } catch {
-              return null;
-            }
-          })(),
+        : parseWorkoutJson(text).payload,
     [mode, name, description, date, steps, text],
   );
   function switchMode(next: EditorMode) {
@@ -658,20 +654,53 @@ function WorkoutComposer({
     setJsonError("");
   }
   function validateJson() {
-    if (!payload) {
-      setJsonError("O conteúdo não é um JSON válido.");
-      return false;
-    }
-    if (
-      !payload.name ||
-      !Array.isArray(payload.steps) ||
-      !payload.steps.length
-    ) {
-      setJsonError("Informe um nome e pelo menos uma etapa.");
+    const parsed = parseWorkoutJson(text);
+    const error = parsed.error || validateWorkoutPayload(parsed.payload);
+    if (error) {
+      setJsonError(error);
       return false;
     }
     setJsonError("");
     return true;
+  }
+  async function pasteJson() {
+    editorRef.current?.focus();
+    if (!navigator.clipboard?.readText) {
+      addToast(
+        "info",
+        "Cole manualmente",
+        "Toque no editor e use a opção de colar do celular.",
+      );
+      return;
+    }
+    try {
+      const clipboardText = await navigator.clipboard.readText();
+      setText(clipboardText);
+      const parsed = parseWorkoutJson(clipboardText);
+      const error = parsed.error || validateWorkoutPayload(parsed.payload);
+      setJsonError(error);
+      addToast(
+        error ? "error" : "success",
+        error ? "JSON inválido" : "JSON colado",
+        error || "Revise o treino ou clique em Validar e enviar.",
+      );
+    } catch {
+      addToast(
+        "info",
+        "Cole manualmente",
+        "A permissão do clipboard foi negada. Toque no editor e cole pelo celular.",
+      );
+      editorRef.current?.focus();
+    }
+  }
+  async function copyWorkoutJson() {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
+      await navigator.clipboard.writeText(text);
+      addToast("info", "JSON copiado", "O treino está na área de transferência.");
+    } catch {
+      addToast("error", "Não foi possível copiar", "Selecione o JSON manualmente.");
+    }
   }
   async function send() {
     if (!validateJson() || !payload) return;
@@ -918,13 +947,20 @@ function WorkoutComposer({
             <div className="json-actions">
               <button
                 className="secondary-button"
+                onClick={() => void pasteJson()}
+              >
+                <Clipboard size={15} /> Colar JSON
+              </button>
+              <button
+                className="secondary-button"
                 onClick={() => {
-                  try {
-                    setText(JSON.stringify(JSON.parse(text), null, 2));
+                  const parsed = parseWorkoutJson(text);
+                  if (!parsed.error && parsed.payload) {
+                    setText(JSON.stringify(parsed.payload, null, 2));
                     setJsonError("");
-                  } catch {
+                  } else {
                     setJsonError(
-                      "Não foi possível formatar: corrija o JSON primeiro.",
+                      parsed.error || "Não foi possível formatar este JSON.",
                     );
                   }
                 }}
@@ -933,17 +969,14 @@ function WorkoutComposer({
               </button>
               <button
                 className="secondary-button"
-                onClick={() =>
-                  navigator.clipboard
-                    ?.writeText(text)
-                    .then(() => addToast("info", "JSON copiado"))
-                }
+                onClick={() => void copyWorkoutJson()}
               >
                 <Clipboard size={15} /> Copiar
               </button>
             </div>
           </div>
           <textarea
+            ref={editorRef}
             className="json-editor"
             value={text}
             onChange={(e) => {
@@ -951,6 +984,7 @@ function WorkoutComposer({
               setJsonError("");
             }}
             spellCheck={false}
+            aria-label="JSON do treino"
           />
           {jsonError && <div className="inline-error">{jsonError}</div>}
           <div className="json-footer">

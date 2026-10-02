@@ -72,7 +72,14 @@ export type ActivityDetail = {
   intervals?: unknown[];
   heartRateZones?: unknown[];
   paceZones?: unknown[];
+  coachExport?: ActivityCoachExport;
   raw: Record<string, unknown>;
+};
+
+export type ActivityCoachExport = {
+  summary: ActivitySummary;
+  laps: unknown[];
+  splits: unknown[];
 };
 
 export type ActivityListItem = ActivitySummary;

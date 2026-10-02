@@ -106,12 +106,15 @@ function ActivityDetailPanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [showRaw, setShowRaw] = useState(false);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
     setError("");
     setDetail(null);
+    setCopied(false);
+    setShowRaw(false);
     void api(`/api/activities/${encodeURIComponent(String(activity.activityId))}`)
       .then((result) => {
         if (active) setDetail(result as ActivityDetail);
@@ -129,11 +132,20 @@ function ActivityDetailPanel({
 
   async function copyJson() {
     if (!detail) return;
-    const json = JSON.stringify(detail, null, 2);
+    const coachExport = detail.coachExport || {
+      summary: detail.summary,
+      laps: detail.laps,
+      splits: detail.splits,
+    };
+    const json = JSON.stringify(coachExport, null, 2);
     try {
       await navigator.clipboard.writeText(json);
       setCopied(true);
-      addToast("info", "JSON copiado", "O retorno completo está na área de transferência.");
+      addToast(
+        "info",
+        "JSON copiado",
+        "A versão compacta está na área de transferência.",
+      );
       window.setTimeout(() => setCopied(false), 1800);
     } catch {
       addToast("error", "Não foi possível copiar", "Selecione o JSON manualmente.");
@@ -194,15 +206,34 @@ function ActivityDetailPanel({
             <div className="activity-data-heading">
               <div>
                 <span className="eyebrow">Exportação</span>
-                <h3><Code2 size={16} /> JSON da atividade</h3>
+                <h3><Clipboard size={16} /> JSON para o Coach</h3>
               </div>
               <button className="secondary-button" onClick={copyJson}>
                 {copied ? <Check size={15} /> : <Copy size={15} />}
-                {copied ? "Copiado" : "Copiar JSON"}
+                {copied ? "JSON copiado" : "Copiar JSON para o Coach"}
               </button>
             </div>
-            <pre>{JSON.stringify(detail, null, 2)}</pre>
-            <p><Clipboard size={14} /> Inclui resumo, métricas disponíveis e o raw sanitizado retornado pela Garmin.</p>
+            <p><Clipboard size={14} /> Exporta somente <code>summary</code>, <code>laps</code> e <code>splits</code>. O raw não entra.</p>
+          </section>
+
+          <section className="activity-raw-block activity-debug-block">
+            <div className="activity-data-heading">
+              <div>
+                <span className="eyebrow">Diagnóstico</span>
+                <h3><Code2 size={16} /> Raw completo da Garmin</h3>
+              </div>
+              <button
+                className="secondary-button"
+                onClick={() => setShowRaw((current) => !current)}
+              >
+                {showRaw ? "Ocultar raw" : "Mostrar raw"}
+              </button>
+            </div>
+            {showRaw ? (
+              <pre>{JSON.stringify(detail.raw, null, 2)}</pre>
+            ) : (
+              <p><Code2 size={14} /> Raw continua disponível para debug e só é renderizado quando solicitado.</p>
+            )}
           </section>
         </>
       )}

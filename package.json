@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test:workout-json": "node --experimental-strip-types --test lib/workout-json.test.ts"
   },
   "dependencies": {
     "lucide-react": "0.542.0",
